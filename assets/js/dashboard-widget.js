@@ -1,0 +1,153 @@
+(function () { var require = undefined; var define = undefined; (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+'use strict';
+
+// vars
+var $ = window.jQuery;
+var rows = [];
+var listSelector = document.getElementById('mc4wp-activity-mailchimp-list');
+var chartElement = document.getElementById("mc4wp-activity-chart");
+var viewSelector = document.getElementById('mc4wp-activity-view');
+var periodSelector = document.getElementById('mc4wp-activity-period');
+
+// init
+viewSelector.onchange = getRowData;
+listSelector.onchange = getRowData;
+periodSelector.onchange = getRowData;
+
+getRememberedValues();
+google.load('visualization', '1', {packages: ['corechart', 'bar', 'line']});
+google.setOnLoadCallback(getRowData);
+
+
+// functions
+function getRememberedValues() {
+	var previouslySelectedListValue = localStorage.getItem('mc4wp_activity_list');
+	if( typeof( previouslySelectedListValue ) === "string" && previouslySelectedListValue.length ) {
+		listSelector.value = previouslySelectedListValue;
+	}
+
+	var previouslySelectedViewValue = localStorage.getItem('mc4wp_activity_view');
+	if( typeof( previouslySelectedViewValue ) === "string" && previouslySelectedViewValue.length ) {
+		viewSelector.value = previouslySelectedViewValue;
+	}
+
+	var previouslySelectedPeriodValue = localStorage.getItem('mc4wp_activity_period');
+	if( previouslySelectedPeriodValue && previouslySelectedPeriodValue.length ) {
+		periodSelector.value = previouslySelectedPeriodValue;
+	}
+}
+
+function rememberValues() {
+	localStorage.setItem( 'mc4wp_activity_list', listSelector.value );
+	localStorage.setItem( 'mc4wp_activity_view', viewSelector.value );
+	localStorage.setItem( 'mc4wp_activity_period', periodSelector.value );
+}
+
+
+function getRowData() {
+
+	// restore data
+	rows = [];
+
+	rememberValues();
+
+	$.getJSON( ajaxurl, {
+		action: 'mc4wp_get_activity',
+		mailchimp_list_id: listSelector.value,
+		period: periodSelector.value,
+		view: viewSelector.value
+	}, function( res ) {
+		rows = res.data;
+
+		if( ! res.data || ! res.data.length ) {
+			// @todo make this translatable
+			chartElement.innerHTML = 'Oops. Something went wrong while fetching data from Mailchimp.';
+			return;
+		}
+
+		for( var i=0; i< rows.length; i++ ) {
+			// convert strings to JavaScript Date object
+			rows[i][0].v = new Date(rows[i][0].v);
+		}
+
+		drawChart();
+	});
+}
+
+function drawChart() {
+
+	var chart;
+	var options = {
+		hAxis: {
+			title: 'Date',
+			format: 'MMM d'
+		},
+		vAxis: {},
+		explorer: {
+			maxZoomOut:2,
+			keepInBounds: true
+		},
+		animation: {
+			duration: 1000,
+			easing: 'linear',
+			startup: true
+		},
+		height: 400
+	};
+
+	if( viewSelector.value === 'size' ) {
+		chart = new SizeChart( rows, options );
+	} else {
+		chart = new ActivityChart( rows, options );
+	}
+
+	chart.draw();
+}
+
+
+
+function ActivityChart( rows, options ) {
+
+	var data = new google.visualization.DataTable();
+	data.addColumn('date', 'Date');
+	data.addColumn('number', 'New Subscribers');
+	data.addColumn('number', 'Unsubscribes');
+	data.addRows(rows);
+
+	options.isStacked = true;
+	options.title = 'Activity for list ' + listSelector.options[listSelector.selectedIndex].innerHTML;
+	options.vAxis.title = "Subscriber Activity";
+
+	function draw() {
+		var chart = new google.visualization.ColumnChart(chartElement);
+		chart.draw(data, options);
+	}
+
+	return {
+		draw: draw
+	}
+
+}
+
+function SizeChart( rows, options ) {
+
+	var data = new google.visualization.DataTable();
+	data.addColumn('date', 'Date');
+	data.addColumn('number', 'Subscribers');
+	data.addRows(rows);
+
+	options.title = "List size for list " + listSelector.options[listSelector.selectedIndex].innerHTML;
+	options.vAxis.title = "Number of Subscribers";
+	options.legend = { position: 'none' };
+
+	function draw() {
+		var chart = new google.charts.Line(chartElement);
+		chart.draw(data, options);
+	}
+
+	return {
+		draw: draw
+	}
+}
+},{}]},{},[1]);
+ })();
